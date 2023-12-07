@@ -7,10 +7,14 @@ import GUI from 'lil-gui';
 //CONSTANT & VARIABLES
 let width = window.innerWidth;
 let height = window.innerHeight;
-//-- GUI PAREMETERS
- 
-//-- SCENE VARIABLES
+//-- GUI PARAMETERS
 var gui;
+const parameters = {
+  iterations: 0,
+  size: 1
+}
+
+//-- SCENE VARIABLES
 var scene;
 var camera;
 var renderer;
@@ -19,295 +23,221 @@ var control;
 var ambientLight;
 var directionalLight;
 
-const parameters = {
-  angle: 30,
-  levelOfBranch: 1,
-}
-
 //-- GEOMETRY PARAMETERS
-//Create an empty array for storing all the geometrie
-var nodes = [];
-var edges = [];
-var angleMultiplier = 40;
-var level = parameters.levelOfBranch;
-var ang = parameters.angle;
- 
+//Create an empty array for storing all the cubes
+let sceneCubes = [];
+let _iter = parameters.iterations;
+let rootCube;
+
 
 function main(){
-  //GUI
-  gui = new GUI;
-  
-  gui.add(parameters, `angle`, 0, 360);
-  gui.add(parameters, `levelOfBranch`, 0, 5, 1);
+    //GUI
+    gui = new GUI;
+    gui.add(parameters, 'iterations', 0, 5, 1);
+    gui.add(parameters, 'size', 1, 5, 0.1);
 
-  //CREATE SCENE AND CAMERA
-  scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera( 20, width / height, 0.1, 100);
-  camera.position.set(20, 20, 20)
+    //CREATE SCENE AND CAMERA
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera( 10, width / height, 0.1, 1000);
+    camera.position.set(45, 45, 45);
 
-  //LIGHTINGS
-  ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-  scene.add(ambientLight);
+    //LIGHTINGS
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
 
-  directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-  directionalLight.position.set(2,5,5);
-  directionalLight.target.position.set(-1,-1,0);
-  scene.add( directionalLight );
-  scene.add(directionalLight.target);
+    directionalLight = new THREE.DirectionalLight( 0xffffff, 5);
+    directionalLight.position.set(2,5,5);
+    directionalLight.target.position.set(-1,-1,0);
+    scene.add( directionalLight );
+    scene.add(directionalLight.target);
 
-  scene.background = new THREE.Color(0xbfe3dd);
+    //GEOMETRY INITIATION
+    // Initiate first cubes
+    rootCube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshPhysicalMaterial());
+    scene.add(rootCube);
+    createCubes(rootCube, parameters.iterations);
 
-  //GEOMETRY INITIATION
+    // Set positions and indices to the BufferGeometry
+    const positions = [];
+    const indices = [];
+    const geometry = new THREE.BufferGeometry();
+    
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    geometry.setIndex(new THREE.BufferAttribute(new Uint16Array(indices), 1));
 
-  //Testing the Node Class
+    // Create a mesh using the BufferGeometry
+    const material = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geometry, material);
+
+    // Add the mesh to the scene
+    scene.add(mesh);
+
+    //RESPONSIVE WINDOW
+    window.addEventListener('resize', handleResize);
  
-  var location = new THREE.Vector3(0,0,0);
-  generateTree(location, level, ang, null);
-
-
-  //RESPONSIVE WINDOW
-  window.addEventListener('resize', handleResize);
- 
-  //CREATE A RENDERER
-  renderer = new THREE.WebGLRenderer({alpha:true, antialias:true});
-  renderer.setSize( window.innerWidth, window.innerHeight );
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  container = document.querySelector('#threejs-container');
-  container.append(renderer.domElement);
+    //CREATE A RENDERER
+    renderer = new THREE.WebGLRenderer({alpha:true, antialias:true});
+    renderer.setSize( window.innerWidth, window.innerHeight );
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container = document.querySelector('#threejs-container');
+    container.append(renderer.domElement);
   
-  //CREATE MOUSE CONTROL
-  control = new OrbitControls( camera, renderer.domElement );
+    //CREATE MOUSE CONTROL
+    control = new OrbitControls( camera, renderer.domElement );
 
-  //EXECUTE THE UPDATE
-  animate();
+    //EXECUTE THE UPDATE
+    animate();
 }
-
-
 
  
 //-----------------------------------------------------------------------------------
 //HELPER FUNCTIONS
 //-----------------------------------------------------------------------------------
 
-//RECURSIVE TREE GENERATION
-function generateTree(position, level, parentAngle, parent){
-  var node = new TreeNode(position, level, parentAngle, parent);
-  nodes.push(node);
+//GEOMETRY FUNCTIONS
 
-  if (parent){
-    var edge = new Edge(parent.position, node.position);
-    edges.push(edge);
-  }
-
-  if (level > 0){
-    node.createChildren();
-    for(var i=0; i<node.children.length; i++){
-      var child = node.children[i];
-      generateTree(child.position, child.level, child.angle, node);
+// Create Cubes
+function createCubes(parentCube, level) {
+    if (level === 0) {
+        return;
     }
-  }
+
+    const offset = 1.5; // Abstand der neuen Würfel vom Zentrum des vorherigen Würfels
+
+    for (let i = 0; i < 8; i++) {
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshPhysicalMaterial();
+        material.color = new THREE.Color(0xffffff);
+        material.color.setRGB(0, 0, level);
+
+        const cube = new THREE.Mesh(geometry, material);
+
+        // Berechne die Position des neuen Würfels basierend auf der aktuellen Position des Elternwürfels
+        const position = new THREE.Vector3();
+        position.copy(parentCube.position);
+        position.x += (i & 1) ? offset : -offset;
+        position.y += (i & 2) ? offset : -offset;
+        position.z += (i & 4) ? offset : -offset;
+
+        cube.position.copy(position);
+        cube.name = "cube " + level + "-" + i;
+
+        sceneCubes.push(cube);
+        scene.add(cube);
+
+        // Rufe die Funktion rekursiv auf, um Würfel auf der nächsten Ebene zu erstellen
+        createCubes(cube, level - 1);
+    }
 }
 
-console.log(edges, nodes);
 
-//RESPONSIVE
-function handleResize() {
-  width = window.innerWidth;
-  height = window.innerHeight;
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
-  renderer.setSize(width, height);
-  renderer.render(scene, camera);
-}
 
-//RANDOM INTEGER IN A RANGE
-function getRndInteger(min, max){
-  return Math.floor(Math.random() * (max-min+1)) + min;
-}
-
-// //Remove 3D Objects and clean the caches
-// function removeObject(nodes){
-//   if (!(nodes instanceof THREE.Object3D)) return;
-
-//   //Remove the geometry to free GPU resources
-//   if(nodes.geometry) nodes.geometry.dispose();
-
-//   //Remove the material to free GPU resources
-//   if(nodes.material){
-//     if (nodes.material instanceof Array) {
-//       nodes.material.forEach(material => material.dispose());
-//     } else {
-//         nodes.material.dispose();
-
-//   if (!(edges instanceof THREE.Object3D)) return;
-
-//   //Remove the geometry to free GPU resources
-//   if(edges.geometry) edges.geometry.dispose();
-
-//   //Remove the material to free GPU resources
-//   if(edges.material){
-//     if (edges.material instanceof Array) {
-//       edges.material.forEach(material => material.dispose());
-//     } else {
-//         edges.material.dispose();
-//     }
-//     }
-//   }
-// }
-
-//   //Remove object from scene
-//   nodes.removeFromParent();
-//   //Remove object from scene
-//   edges.removeFromParent();
-// }
-
-// Remove 3D Objects and clean the caches
-function removeObject(nodes) {
-  if (!(nodes instanceof THREE.Object3D)) return;
-
-  // Remove the geometry to free GPU resources
-  if (nodes.geometry) nodes.geometry.dispose();
-
-  // Remove the material to free GPU resources
-  if (nodes.material) {
-    if (nodes.material instanceof Array) {
-      nodes.material.forEach((material) => material.dispose());
+// Create Cube with recursive function
+function createRecursiveCube(iterations, v0, v1, v2, v3, positions, indices) {
+    if (iterations === 0) {
+        const index = positions.length / 2;
+    
+        // Vertices for the cube
+        positions.push(v0.x, v0.y, v0.z);
+        positions.push(v1.x, v1.y, v1.z);
+        positions.push(v2.x, v2.y, v2.z);
+        positions.push(v3.x, v3.y, v3.z);
+    
+        // Define the cube faces using indices
+        indices.push(index, index + 1, index + 2);
+        indices.push(index, index + 2, index + 3);
     } else {
-      nodes.material.dispose();
-    }
-  }
+        const mid01 = v0.clone().lerp(v1, 0.5);
+        const mid12 = v1.clone().lerp(v2, 0.5);
+        const mid23 = v2.clone().lerp(v3, 0.5);
+        const mid30 = v3.clone().lerp(v0, 0.5);
+        const center = mid01.clone().lerp(mid23, 0.5);
 
-  // Remove object from scene
-  nodes.removeFromParent();
+        // Recursive calls for the eight sub-cubes
+        createRecursiveCube(iterations - 1, v0, mid01, center, mid30, positions, indices);
+        createRecursiveCube(iterations - 1, mid01, v1, mid12, center, positions, indices);
+        createRecursiveCube(iterations - 1, center, mid12, v2, mid23, positions, indices);
+        createRecursiveCube(iterations - 1, mid30, center, mid23, v3, positions, indices);
+        
+        createRecursiveCube(iterations - 1, v0, mid01, center, mid30, positions, indices);
+        createRecursiveCube(iterations - 1, mid01, v1, mid12, center, positions, indices);
+        createRecursiveCube(iterations - 1, center, mid12, v2, mid23, positions, indices);
+        createRecursiveCube(iterations - 1, mid30, center, mid23, v3, positions, indices);
+    }
+}
+
+
+
+
+
+
+//Remove 3D Objects and clean the caches
+function removeObject(sceneObject){
+    if (!(sceneObject instanceof THREE.Object3D)) return;
+
+    //Remove the geometry to free GPU resources
+    if(sceneObject.geometry) sceneObject.geometry.dispose();
+
+    //Remove the material to free GPU resources
+    if(sceneObject.material){
+        if (sceneObject.material instanceof Array) {
+            sceneObject.material.forEach(material => material.dispose());
+        } else {
+            sceneObject.material.dispose();
+        }
+    }
+
+    //Remove object from scene
+    sceneObject.removeFromParent();
 }
 
 //Remove the cubes
-function removeObjects(){
-  ang = parameters.angle;
-  level = parameters.levelOfBranch;
+function removeCubes(){
+    sceneCubes.forEach(element =>{
+        let scene_cube = scene.getObjectByName(element.name);
+        removeObject(scene_cube);
+    })
 
+    sceneCubes = [];
+}
 
-  nodes.forEach(element =>{
-    let scene_objects = scene.getObjectByName(element.name);
-    removeObject(scene_objects);
-    console.log(scene_objects);
-  })
-
-  edges.forEach(element =>{
-    let scene_objects = scene.getObjectByName(element.name);
-    removeObject(scene_objects);
-    console.log(scene_objects);
-  })
-
-  nodes = [];
-  edges = [];
-
-  
+//RESPONSIVE
+function handleResize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+    renderer.render(scene, camera);
 }
 
 //ANIMATE AND RENDER
 function animate() {
-	requestAnimationFrame( animate );
+    requestAnimationFrame( animate );
 
-  // control.update();
+    control.update();
 
-   if(ang != parameters.angle){
-    removeObjects()
-    var location = new THREE.Vector3(0,0,0);
-    generateTree(location, level, ang, null);
-  
-   }
+    if(_iter != parameters.iterations){
+        _iter = parameters.iterations;
 
-  //  if(level != parameters.levelOfBranche){
-  //   removeCubes()
-  //     var location = new THREE.Vector3(0,0,0);
-  //   generateTree(location, level, ang, null);
-  //  }
- 
- 
-	renderer.render( scene, camera );
+        // Entferne vorherige Würfel
+        sceneCubes.forEach(cube => scene.remove(cube));
+        sceneCubes = [];
+
+        // Erstelle neue Würfel mit den aktualisierten Iterationen
+        createCubes(rootCube, parameters.iterations);
+    }
+
+    renderer.render( scene, camera );
 }
+
 //-----------------------------------------------------------------------------------
 // CLASS
 //-----------------------------------------------------------------------------------
-
-
-class TreeNode{
-  constructor(position, level, parentAngle, parent){
-    this.position = position;
-    this.level = level;
-    this.parentAngle = parentAngle * (Math.PI/180);
-    this.parentDirection = new THREE.Vector3(0,1,0);
-    this.parent = parent;
-    this.children = [];
-
-    //Calculate the angle based on the parent's angle
-    this.angle = this.parentAngle + getRndInteger(0-angleMultiplier/2, angleMultiplier/2) * (Math.PI/180);
-
-    this.length = this.level === 0 ? 2:Math.random() * 2 + 1;
-
-    //Create the shape for the node
-    var nodeGeometry = new THREE.SphereGeometry(0.1, 10, 10);
-    var material = new THREE.MeshBasicMaterial({color:0xffffff});
-    this.nodeMesh = new THREE.Mesh(nodeGeometry, material);
-    this.nodeMesh.position.copy(this.position);
-
-    //Add the node to the scene
-    scene.add(this.nodeMesh);
-
-    //Create an edge (branch)connecting to the parent if it exist
-    if (parent){
-      var edge = new Edge(parent.position, this.position);
-      this.edgeMesh = edge.mesh;
-      scene.add(this.edgeMesh);
-    }
-  }
-
-
-
-  createChildren(){
-    for(var i=0; i<2; i++){
-      var childPosition = new THREE.Vector3().copy(this.position);
-
-      let axisZ = new THREE.Vector3(0,0,1);
-      let axisY = new THREE.Vector3(0,1,0);
-
-      this.parentDirection.applyAxisAngle(axisZ, this.angle);
-      this.parentDirection.applyAxisAngle(axisY, this.angle);
-
-      childPosition.x += this.parentDirection.x * this.length;
-      childPosition.y += this.parentDirection.y * this.length;
-      childPosition.z += this.parentDirection.z * this.length;
-
-      var child = new TreeNode(childPosition, this.level-1, this.angle, this)
-
-      this.children.push(child);
-      
-    }
-  }
-}
-
-
-
-class Edge{
-  constructor(start, end){
-    this.start = start;
-    this.end = end;
-
-    const points = [];
-    points.push(this.start);
-    points.push(this.end);
-
-    var edgeGeometry = new THREE.BufferGeometry().setFromPoints(points);
-
-    var material = new THREE.MeshBasicMaterial({color:0xffffff});
-
-    this.mesh = new THREE.Line(edgeGeometry, material);
-  }
-}
 
 //-----------------------------------------------------------------------------------
 // EXECUTE MAIN 
 //-----------------------------------------------------------------------------------
 
 main();
+
